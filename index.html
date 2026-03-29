@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bubbly Parkour Extreme</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #ffeaf2; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        canvas { display: block; background: linear-gradient(#a1c4fd, #c2e9fb); cursor: pointer; }
+        
+        /* Menu Styling */
+        #menuOverlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; 
+            backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+        #menuContent { 
+            background: white; padding: 50px; border-radius: 40px; text-align: center; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1); border: 8px solid #48dbfb;
+        }
+        h1 { color: #ff6b6b; margin: 0; font-size: 42px; }
+        .score-text { font-size: 20px; color: #888; margin-top: 20px; }
+        #lastScore { font-size: 60px; color: #48dbfb; margin: 0 0 20px 0; font-weight: 900; }
+        
+        .start-btn { 
+            background: #ff6b6b; color: white; border: none; padding: 15px 40px;
+            font-size: 24px; font-weight: bold; border-radius: 50px; cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .start-btn:hover { transform: scale(1.1); background: #ff5252; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="menuOverlay">
+        <div id="menuContent">
+            <h1 id="menuTitle">Bubbly Parkour</h1>
+            <div id="scoreContainer" style="display: none;">
+                <p class="score-text">Last Score</p>
+                <div id="lastScore">0</div>
+            </div>
+            <button class="start-btn" onclick="startGame()">START GAME</button>
+            <p style="color: #aaa; margin-top: 15px;">Press Space or Click to Jump</p>
+        </div>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const menuOverlay = document.getElementById('menuOverlay');
+const menuTitle = document.getElementById('menuTitle');
+const lastScoreDisplay = document.getElementById('lastScore');
+const scoreContainer = document.getElementById('scoreContainer');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let gameActive = false;
+let score = 0;
+let gameSpeed = 5;
+const gravity = 0.6;
+const jumpForce = -16;
+
+let particles = [];
+function createParticles(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            radius: Math.random() * 8 + 2,
+            life: 1,
+            color
+        });
+    }
+}
+
+const player = {
+    x: 150, y: 0, w: 45, h: 45, dy: 0,
+    grounded: false, jumpAnim: 1,
+    update() {
+        if (!gameActive) return;
+        this.dy += gravity;
+        this.y += this.dy;
+        this.jumpAnim += (1 - this.jumpAnim) * 0.15;
+        if (this.y > canvas.height) endGame();
+    },
+    draw() {
+        ctx.save();
+        ctx.translate(this.x + this.w/2, this.y + this.h);
+        ctx.scale(2 - this.jumpAnim, this.jumpAnim);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath();
+        ctx.roundRect(-this.w/2, -this.h, this.w, this.h, 15);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(10, -30, 6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    }
+};
+
+let platforms = [];
+function spawnPlatform(isStartPlatform = false) {
+    let x, y, w;
+    
+    if (isStartPlatform) {
+        x = 50; 
+        y = canvas.height - 150;
+        w = 500; // Extra long starting platform
+    } else {
+        const last = platforms[platforms.length - 1];
+        x = last.x + last.w + Math.random() * 150 + 80;
+        y = Math.max(200, Math.min(canvas.height - 100, last.y + (Math.random() - 0.5) * 250));
+        w = Math.random() * 150 + 100;
+    }
+    
+    platforms.push({ x, y, w, h: 35, color: isStartPlatform ? '#5f27cd' : '#48dbfb' });
+}
+
+function startGame() {
+    score = 0;
+    gameSpeed = 6;
+    platforms = [];
+    particles = [];
+    player.y = canvas.height - 200;
+    player.dy = 0;
+    
+    // Spawn the giant start platform first
+    spawnPlatform(true);
+    for(let i=0; i<5; i++) spawnPlatform(false);
+    
+    menuOverlay.style.display = 'none';
+    gameActive = true;
+}
+
+function endGame() {
+    gameActive = false;
+    menuTitle.innerText = "Game Over!";
+    lastScoreDisplay.innerText = score;
+    scoreContainer.style.display = 'block';
+    menuOverlay.style.display = 'flex';
+}
+
+function handleJump() {
+    if (!gameActive) return;
+    if (player.grounded) {
+        player.dy = jumpForce;
+        player.grounded = false;
+        player.jumpAnim = 1.6; 
+        createParticles(player.x + player.w/2, player.y + player.h, '#fff');
+    }
+}
+
+window.addEventListener('keydown', (e) => {
+    if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
+        e.preventDefault();
+        handleJump();
+    }
+});
+canvas.addEventListener('mousedown', handleJump);
+
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    particles.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+        if (p.life <= 0) particles.splice(i, 1);
+        ctx.fillStyle = `rgba(255,255,255, ${p.life})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+    });
+
+    if (gameActive) {
+        player.update();
+        player.grounded = false;
+
+        platforms.forEach((p, i) => {
+            p.x -= gameSpeed;
+            
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, 15); ctx.fill();
+            ctx.strokeStyle = "rgba(255,255,255,0.4)";
+            ctx.lineWidth = 4; ctx.stroke();
+
+            if (player.x < p.x + p.w && player.x + player.w > p.x &&
+                player.y + player.h > p.y && player.y + player.h < p.y + p.h + player.dy) {
+                if (!player.grounded && player.dy > 0) {
+                    createParticles(player.x + player.w/2, p.y, p.color, 4);
+                    player.jumpAnim = 0.7;
+                }
+                player.grounded = true;
+                player.dy = 0;
+                player.y = p.y - player.h;
+            }
+
+            if (p.x + p.w < 0) {
+                platforms.splice(i, 1);
+                spawnPlatform(false);
+                score++;
+                gameSpeed += 0.05;
+            }
+        });
+    }
+
+    player.draw();
+    
+    if (gameActive) {
+        ctx.fillStyle = "#5d5d5d";
+        ctx.font = "bold 24px Arial";
+        ctx.fillText("Score: " + score, 30, 50);
+    }
+
+    requestAnimationFrame(animate);
+}
+
+// Show start state
+player.y = canvas.height / 2;
+animate();
+</script>
+</body>
+</html>
